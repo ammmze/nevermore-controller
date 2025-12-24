@@ -1,0 +1,150 @@
+name: Build
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+  release:
+    types: [ published ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        board:
+          - pico_w
+          - pico
+          - pico_w_no_bt
+          - fysetc_rp2040_touch_v1
+          - waveshare-rp2040-lcd-1.28
+          - waveshare-rp2040-touch-lcd-1.28
+          - waveshare-rp2040-zero
+        build_type:
+          - Release
+          - Debug
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      with:
+        submodules: recursive
+    
+    - name: Configure Git to use HTTPS instead of SSH
+      run: git config --global url."https://github.com/".insteadOf "git@github.com:"
+    
+    - name: Cache Pico SDK
+      id: cache-pico-sdk
+      uses: actions/cache@v4
+      with:
+        path: ~/pico-sdk
+        key: pico-sdk-${{ runner.os }}-1.5.1
+    
+    - name: Install Pico SDK
+      if: steps.cache-pico-sdk.outputs.cache-hit != 'true'
+      run: |
+        cd ~
+        git clone --depth 1 --branch 1.5.1 https://github.com/raspberrypi/pico-sdk.git
+        cd pico-sdk
+        git submodule update --init --recursive --depth 1
+
+    - name: Set Pico SDK path
+      run: echo "PICO_SDK_PATH=${HOME}/pico-sdk" >> $GITHUB_ENV
+    
+    - name: Install ARM toolchain
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y gcc-arm-none-eabi libnewlib-arm-none-eabi libstdc++-arm-none-eabi-newlib
+    
+    - name: Install build dependencies
+      run: |
+        sudo apt-get install -y cmake ninja-build
+    
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.x'
+    
+    - name: Install Python dependencies
+      run: pip3 install pycryptodomex
+    
+    - name: Set board configuration
+      id: board_config
+      run: |
+        # Extract board settings from cmake-variants.yaml
+        case "${{ matrix.board }}" in
+          "pico_w")
+            echo "PICO_BOARD=pico_w" >> $GITHUB_OUTPUT
+            echo "NEVERMORE_BOARD=pico_w" >> $GITHUB_OUTPUT
+            echo "NEVERMORE_PICO_W_BT=true" >> $GITHUB_OUTPUT
+            ;;
+          "pico")
+            echo "PICO_BOARD=pico" >> $GITHUB_OUTPUT
+            echo "NEVERMORE_BOARD=pico" >> $GITHUB_OUTPUT
+            echo "NEVERMORE_PICO_W_BT=false" >> $GITHUB_OUTPUT
+            ;;
+          "pico_w_no_bt")
+            echo "PICO_BOARD=pico_w" >> $GITHUB_OUTPUT
+            echo "NEVERMORE_BOARD=pico_w" >> $GITHUB_OUTPUT
+            echo "NEVERMORE_PICO_W_BT=false" >> $GITHUB_OUTPUT
+            ;;
+          "fysetc_rp2040_touch_v1")
+            echo "PICO_BOARD=fysetc_rp2040_touch_v1" >> $GITHUB_OUTPUT
+            echo "NEVERMORE_BOARD=fysetc-rp2040-touch-v1" >> $GITHUB_OUTPUT
+            echo "NEVERMORE_PICO_W_BT=false" >> $GITHUB_OUTPUT
+            ;;
+          "waveshare-rp2040-lcd-1.28")
+            echo "PICO_BOARD=waveshare_rp2040_lcd_1.28" >> $GITHUB_OUTPUT
+            echo "NEVERMORE_BOARD=waveshare-rp2040-lcd-1.28" >> $GITHUB_OUTPUT
+            echo "NEVERMORE_PICO_W_BT=false" >> $GITHUB_OUTPUT
+            ;;
+          "waveshare-rp2040-touch-lcd-1.28")
+            echo "PICO_BOARD=waveshare_rp2040_lcd_1.28" >> $GITHUB_OUTPUT
+            echo "NEVERMORE_BOARD=waveshare-rp2040-touch-lcd-1.28" >> $GITHUB_OUTPUT
+            echo "NEVERMORE_PICO_W_BT=false" >> $GITHUB_OUTPUT
+            ;;
+          "waveshare-rp2040-zero")
+            echo "PICO_BOARD=waveshare_rp2040_zero" >> $GITHUB_OUTPUT
+            echo "NEVERMORE_BOARD=waveshare-rp2040-zero" >> $GITHUB_OUTPUT
+            echo "NEVERMORE_PICO_W_BT=false" >> $GITHUB_OUTPUT
+            ;;
+        esac
+    
+    - name: Configure CMake
+      env:
+        PICO_BOARD: ${{ steps.board_config.outputs.PICO_BOARD }}
+      run: |
+        cmake -B build -G Ninja \
+          -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} \
+          -DPICO_BOARD=${{ steps.board_config.outputs.PICO_BOARD }} \
+          -DNEVERMORE_BOARD=${{ steps.board_config.outputs.NEVERMORE_BOARD }} \
+          -DNEVERMORE_PICO_W_BT=${{ steps.board_config.outputs.NEVERMORE_PICO_W_BT }}
+    
+    - name: Build
+      env:
+        PICO_BOARD: ${{ steps.board_config.outputs.PICO_BOARD }}
+      run: cmake --build build --parallel
+    
+    - name: Upload artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: nevermore-controller-${{ matrix.board }}-${{ matrix.build_type }}
+        path: |
+          build/picowota_ota*.uf2
+        # build/*.uf2
+        # build/*.elf
+        # build/*.bin
+        # build/*.hex
+        if-no-files-found: warn
+    
+    - name: Upload release assets
+      if: github.event_name == 'release' && matrix.build_type == 'Release'
+      uses: softprops/action-gh-release@v1
+      with:
+        files: |
+          build/picowota_ota*.uf2
+        # build/*.uf2
+        # build/*.elf
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

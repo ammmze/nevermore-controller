@@ -19,6 +19,9 @@ uint16_t pwm_gpio_duty(uint8_t gpio, uint16_t duty);
 // Sets the level while accounting for the slice's current top.
 void pwm_set_gpio_duty(uint8_t gpio, uint16_t duty);
 
+// Turn off PWM on the given GPIO.
+void pwm_off_gpio(uint8_t gpio);
+
 void pwm_config_set_freq_hz(pwm_config& c, uint32_t freq_hz);
 
 }  // namespace nevermore

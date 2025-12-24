@@ -13,7 +13,7 @@ void servo_set(GPIO const pin, ServoRange const& range, BLE::Percentage16_10 con
     if (!pin) return;
 
     if (perc == BLE::NOT_KNOWN) {
-        pwm_set_gpio_duty(pin, 0);  // 0% is typically considered unset/release
+        pwm_off_gpio(pin);  // 0% is typically considered unset/release
         return;
     }
 

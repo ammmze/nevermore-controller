@@ -19,6 +19,7 @@ uint32_t clock_div(uint32_t source_hz, uint32_t target_hz) {
 uint16_t pwm_gpio_duty(uint8_t gpio, uint16_t duty) {
     uint const slice_num = pwm_gpio_to_slice_num(gpio);
     check_slice_num_param(slice_num);
+    pwm_set_enabled(slice_num, true);
 
     // Use rounding here to set it as accurately as possible
     auto top = pwm_hw->slice[slice_num].top;  // NOLINT
@@ -27,6 +28,22 @@ uint16_t pwm_gpio_duty(uint8_t gpio, uint16_t duty) {
 
 void pwm_set_gpio_duty(uint8_t gpio, uint16_t duty) {
     pwm_set_gpio_level(gpio, pwm_gpio_duty(gpio, duty));
+}
+
+void pwm_off_gpio(uint8_t gpio) {
+    // Get the slice number and channel for the given GPIO pin
+    uint const slice_num = pwm_gpio_to_slice_num(gpio);
+
+    // 1. Set the PWM level to 0 (optional, but good practice to ensure pin is low)
+    pwm_set_gpio_level(gpio, 0);
+
+    // 2. Disable the specific PWM slice
+    // This stops the timer and clock for the entire slice (both channels A and B)
+    // Potentially a problem if the other channel is in use for something else with PWM.
+    pwm_set_enabled(slice_num, false);
+
+    // 3. Revert the pin to standard GPIO function
+    // gpio_set_function(gpio, GPIO_FUNC_SIO); // needed?
 }
 
 // stolen/derived from: https://github.com/micropython/micropython/blob/master/ports/rp2/machine_pwm.c

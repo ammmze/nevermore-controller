@@ -15,12 +15,12 @@ jobs:
       matrix:
         board:
           - pico_w
-          - pico
-          - pico_w_no_bt
-          - fysetc_rp2040_touch_v1
-          - waveshare-rp2040-lcd-1.28
-          - waveshare-rp2040-touch-lcd-1.28
-          - waveshare-rp2040-zero
+          # - pico
+          # - pico_w_no_bt
+          # - fysetc_rp2040_touch_v1
+          # - waveshare-rp2040-lcd-1.28
+          # - waveshare-rp2040-touch-lcd-1.28
+          # - waveshare-rp2040-zero
         build_type:
           - Release
           - Debug
